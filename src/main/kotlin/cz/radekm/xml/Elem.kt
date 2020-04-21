@@ -58,6 +58,8 @@ data class Elem(
     }
 
     fun formatted() = formattedLines().joinToString("\n")
+
+    override fun toString() = formatted()
 }
 
 object ElemReader {

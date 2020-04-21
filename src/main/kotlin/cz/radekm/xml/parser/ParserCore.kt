@@ -144,7 +144,12 @@ interface VariantParserScope<T> {
     val variantParseContext: VariantParseContext<T>
 }
 
-fun <T> ParserScope.oneOf(blockWithVariants: VariantParserScope<T>.() -> Unit): T {
+inline fun <reified T> ParserScope.oneOf(noinline blockWithVariants: VariantParserScope<T>.() -> Unit) =
+        oneOf<T>(T::class.java, blockWithVariants)
+
+// TODO We should somehow include what unsuccessful variants did not parse
+//      because it's useful for remaining items.
+fun <T> ParserScope.oneOf(cls: Class<T>, blockWithVariants: VariantParserScope<T>.() -> Unit): T {
     val scope = object : VariantParserScope<T> {
         override val variantParseContext = VariantParseContext<T>(
                 originalParseContext = this@oneOf.parseContext,
@@ -162,6 +167,7 @@ fun <T> ParserScope.oneOf(blockWithVariants: VariantParserScope<T>.() -> Unit): 
         // All variants failed.
         throw ParseError.NoMatchingVariant(
                 scope.variantParseContext.originalParseContext.origElem,
+                cls,
                 scope.variantParseContext.errorPerVariant
         )
     } else {
@@ -239,11 +245,12 @@ abstract class ParseError(message: String?) : RuntimeException(message) {
     }
     class NoMatchingChild(
             val origElem: Elem,
+            val cls: Class<*>,
             val errorPerChild: List<ElemWithError>
     ) : ParseError(null) {
         override fun formattedLines(): List<String> {
             val result = mutableListOf(
-                    "No matching child (${errorPerChild.size} tried)",
+                    "No matching child for ${cls.canonicalName} (${errorPerChild.size} tried)",
                     origElem.formattedIntro()
             )
             errorPerChild.forEachIndexed { idx, (elem, e) ->
@@ -256,11 +263,12 @@ abstract class ParseError(message: String?) : RuntimeException(message) {
     }
     class NoMatchingVariant(
             val origElem: Elem,
+            val cls: Class<*>,
             val errorPerVariant: List<ParseError>
     ) : ParseError(null) {
         override fun formattedLines(): List<String> {
             val result = mutableListOf(
-                    "No matching variant (${errorPerVariant.size} tried)",
+                    "No matching variant for ${cls.canonicalName} (${errorPerVariant.size} tried)",
                     origElem.formattedIntro()
             )
             errorPerVariant.forEachIndexed { idx, e ->

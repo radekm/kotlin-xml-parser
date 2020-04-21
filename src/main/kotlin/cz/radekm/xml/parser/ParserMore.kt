@@ -1,5 +1,7 @@
 package cz.radekm.xml.parser
 
+import cz.radekm.xml.Elem
+
 fun ParserScope.name(expectedName: String) {
     if (parseContext.name != expectedName)
         throw ParseError.Other("Element name is not $expectedName")
@@ -30,12 +32,15 @@ fun <T> ParserScope.child0(parse: ParserScope.() -> T): T? {
     return childrenAtMost0(1, parse).firstOrNull()
 }
 
-fun <T> ParserScope.child(parse: ParserScope.() -> T): T {
+inline fun <reified T> ParserScope.child(noinline parse: ParserScope.() -> T): T =
+    child(T::class.java, parse)
+
+fun <T> ParserScope.child(cls: Class<T>, parse: ParserScope.() -> T): T {
     val result = childrenAtMost0(1, parse).firstOrNull()
 
     if (result == null) {
         val errorPerChild = parseContext.children.map { it.toElemWithLastError() }
-        throw ParseError.NoMatchingChild(parseContext.origElem, errorPerChild)
+        throw ParseError.NoMatchingChild(parseContext.origElem, cls, errorPerChild)
     }
 
     return result
@@ -45,12 +50,15 @@ fun <T> ParserScope.children0(parse: ParserScope.() -> T): List<T> {
     return childrenAtMost0(Int.MAX_VALUE, parse)
 }
 
-fun <T> ParserScope.children(parse: ParserScope.() -> T): List<T> {
+inline fun <reified T> ParserScope.children(noinline parse: ParserScope.() -> T): List<T> =
+        children(T::class.java, parse)
+
+fun <T> ParserScope.children(cls: Class<T>, parse: ParserScope.() -> T): List<T> {
     val result = childrenAtMost0(Int.MAX_VALUE, parse)
 
     if (result.isEmpty()) {
         val errorPerChild = parseContext.children.map { it.toElemWithLastError() }
-        throw ParseError.NoMatchingChild(parseContext.origElem, errorPerChild)
+        throw ParseError.NoMatchingChild(parseContext.origElem, cls, errorPerChild)
     }
 
     return result
@@ -64,4 +72,10 @@ fun ParserScope.text0(): String {
     val text = parseContext.text
     parseContext.text = null
     return text ?: ""
+}
+
+fun ParserScope.ignoreBlankText() {
+    val text = text0()
+    if (text.isNotBlank())
+        throw ParseError.Other("Text is not blank: ${Elem.formattedText(text)}")
 }
